@@ -1,47 +1,46 @@
-(ns snow.core
+(ns drawing.snow
   (:require [quil.core :as q]
             [quil.middleware :as m]))
 
 (defn setup []
-  ; Set frame rate to 30 frames per second.
-  (q/frame-rate 30)
-  ; Set color mode to HSB (HSV) instead of default RGB.
-  (q/color-mode :hsb)
-  ; setup function returns initial state. It contains
-  ; circle color and position.
-  {:color 0
-   :angle 0})
+  (q/smooth)
+  {:flake (q/load-image "images/white_flake.png")
+   :background (q/load-image "images/blue_background.png")
+   :params [{:x 10  :swing 1 :y 10  :speed 1}
+            {:x 200 :swing 3 :y 100 :speed 4}
+            {:x 390 :swing 2 :y 50  :speed 2}]})
 
-(defn update-state [state]
-  ; Update sketch state by changing circle color and position.
-  {:color (mod (+ (:color state) 0.7) 255)
-   :angle (+ (:angle state) 0.1)})
+(defn update-y
+  [{y :y speed :speed :as m}]
+  (if (>= y (q/height))
+    (assoc m :y 0)
+    (update-in m [:y] + speed)))
 
-(defn draw-state [state]
-  ; Clear the sketch by filling it with light-grey color.
-  (q/background 240)
-  ; Set circle color.
-  (q/fill (:color state) 255 255)
-  ; Calculate x and y coordinates of the circle.
-  (let [angle (:angle state)
-        x (* 150 (q/cos angle))
-        y (* 150 (q/sin angle))]
-    ; Move origin point to the center of the sketch.
-    (q/with-translation [(/ (q/width) 2)
-                         (/ (q/height) 2)]
-      ; Draw the circle.
-      (q/ellipse x y 100 100))))
+(defn update-x
+  [{x :x swing :swing y :y :as m}]
+  (cond
+    (< x 0) (assoc m :x (q/width))                                  ;; too left
+    (< x (q/width)) (update-in m [:x] + (* swing (q/sin (/ y 50)))) ;; within frame
+    :else (assoc m :x 0)))                                        ;; too right
 
-(q/defsketch snow
-  :title "You spin my circle right round"
+(defn update [state]
+  (let [params  (:params state)
+        params (map update-y params)
+        params (map update-x params)]
+    (assoc state :params params)))
+
+(defn draw [{flake :flake background :background params :params}]
+  (q/background-image background)
+  (dotimes [n 3]
+    (let [param (nth params n)]
+        (q/image flake (:x param) (:y param)))))
+
+(q/defsketch practice
+  :title "Snow scene"
   :size [500 500]
-  ; setup function called only once, during sketch initialization.
   :setup setup
-  ; update-state is called on each iteration before draw-state.
-  :update update-state
-  :draw draw-state
+  :settings #(q/pixel-density 1)
+  :draw draw
+  :update update
   :features [:keep-on-top]
-  ; This sketch uses functional-mode middleware.
-  ; Check quil wiki for more info about middlewares and particularly
-  ; fun-mode.
   :middleware [m/fun-mode])
